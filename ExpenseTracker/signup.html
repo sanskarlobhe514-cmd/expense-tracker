@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Sign Up | My Money</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <main class="auth-page">
+
+        <div class="auth-card">
+
+            <div class="auth-logo">₹</div>
+
+            <h1>Create Account</h1>
+
+            <p>Start managing your money</p>
+
+            <form id="signupForm">
+
+                <label for="signupEmail">
+                    Email
+                </label>
+
+                <input
+                    type="email"
+                    id="signupEmail"
+                    placeholder="Enter your email"
+                    required
+                >
+
+                <label for="signupPassword">
+                    Password
+                </label>
+
+                <input
+                    type="password"
+                    id="signupPassword"
+                    placeholder="Create a password"
+                    minlength="6"
+                    required
+                >
+
+                <button type="submit" class="primary-button">
+                    Create Account
+                </button>
+
+                <p id="signupMessage"></p>
+
+            </form>
+
+            <p class="auth-link">
+                Already have an account?
+                <a href="login.html">Login</a>
+            </p>
+
+        </div>
+
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase.js"></script>
+
+    <script>
+        const signupForm = document.getElementById("signupForm");
+        const signupMessage = document.getElementById("signupMessage");
+
+        signupForm.addEventListener("submit", async function (event) {
+            event.preventDefault();
+
+            const email = document.getElementById("signupEmail").value.trim();
+            const password = document.getElementById("signupPassword").value;
+
+            signupMessage.textContent = "Creating account...";
+
+            const { data, error } = await supabaseClient.auth.signUp({
+                email: email,
+                password: password
+            });
+
+            if (error) {
+                signupMessage.textContent = error.message;
+                return;
+            }
+
+            if (data.session) {
+                signupMessage.textContent = "Account created!";
+
+                setTimeout(function () {
+                    window.location.href = "index.html";
+                }, 1000);
+            } else {
+                signupMessage.textContent =
+                    "Account created. Check your email to confirm your account.";
+            }
+        });
+    </script>
+
+</body>
+</html>

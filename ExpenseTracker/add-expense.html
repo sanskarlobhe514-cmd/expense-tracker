@@ -1,0 +1,92 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add Entry | My Money</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="index.html">
+      <span class="brand-icon">₹</span>
+      <span>My Money</span>
+    </a>
+    <nav class="nav">
+      <a class="nav-link" href="index.html">Dashboard</a>
+      <a class="nav-link active" href="add-expense.html">Add Entry</a>
+      <a class="nav-link" href="expenses.html">All Transactions</a>
+    </nav>
+  </header>
+
+  <main class="container narrow-container">
+    <section class="page-heading">
+      <div>
+        <p class="eyebrow">RECORD YOUR MONEY</p>
+        <h1>Add an Entry</h1>
+        <p class="subtitle">Record money you receive or spend.</p>
+      </div>
+    </section>
+
+    <section class="panel form-panel">
+      <form id="transactionForm">
+        <label class="field-label">What do you want to add?</label>
+
+        <div class="type-switch">
+          <button type="button" class="type-choice active" data-type="expense">
+            − Expense
+          </button>
+          <button type="button" class="type-choice" data-type="income">
+            + Income
+          </button>
+        </div>
+
+        <input type="hidden" id="transactionType" value="expense">
+
+        <div class="form-group">
+          <label for="amount">Amount (₹)</label>
+          <input type="number" id="amount" min="0.01" step="0.01"
+                 placeholder="Enter amount" required>
+        </div>
+
+        <div class="form-group" id="expenseDetails">
+          <label for="category">Type of Expense</label>
+          <select id="category">
+            <option value="Food">Food</option>
+            <option value="Travel">Travel</option>
+            <option value="Shopping">Shopping</option>
+            <option value="Bills">Bills</option>
+            <option value="Health">Health</option>
+            <option value="Education">Education</option>
+            <option value="Entertainment">Entertainment</option>
+            <option value="Home">Home</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="description">What was it for?</label>
+          <input type="text" id="description" maxlength="100"
+                 placeholder="e.g. Lunch, salary, bus ticket" required>
+        </div>
+
+        <div class="form-group">
+          <label for="date">Date</label>
+          <input type="date" id="date" required>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="button button-wide">Save Entry</button>
+          <a class="button button-secondary button-wide" href="index.html">Cancel</a>
+        </div>
+        <p id="formMessage" class="form-message" role="status"></p>
+      </form>
+    </section>
+  </main>
+
+  <footer class="footer">My Money · Manage your money simply</footer>
+  <script src="script.js"></script>
+</body>
+</html>

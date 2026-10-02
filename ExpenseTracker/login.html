@@ -1,0 +1,732 @@
+"use strict";
+
+/* =========================================
+   MY MONEY - EXPENSE TRACKER
+   Storage, dashboard, income, expenses,
+   transaction history, filters and CSV export
+========================================= */
+
+const STORAGE_KEY = "expenseTrackerData";
+
+/* ---------- HELPER FUNCTIONS ---------- */
+
+function $(id) {
+  return document.getElementById(id);
+}
+
+function localDateString(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function currentMonth() {
+  return localDateString().slice(0, 7);
+}
+
+function money(amount) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2
+  }).format(amount);
+}
+
+function formatDate(dateString) {
+  const date = new Date(`${dateString}T12:00:00`);
+
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  });
+}
+
+function escapeHTML(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[character]);
+}
+
+function setText(id, value) {
+  const element = $(id);
+
+  if (element) {
+    element.textContent = value;
+  }
+}
+
+/* ---------- LOCAL STORAGE ---------- */
+
+function loadTransactions() {
+  try {
+    const storedData = localStorage.getItem(STORAGE_KEY);
+    const data = JSON.parse(storedData || "[]");
+
+    if (!Array.isArray(data)) {
+      return [];
+    }
+
+    return data.filter((item) =>
+      item &&
+      typeof item === "object" &&
+      ["income", "expense"].includes(item.type) &&
+      Number.isFinite(Number(item.amount)) &&
+      Number(item.amount) > 0 &&
+      /^\d{4}-\d{2}-\d{2}$/.test(item.date || "")
+    );
+  } catch (error) {
+    console.error("Unable to read saved transactions:", error);
+    return [];
+  }
+}
+
+function saveTransactions(transactions) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
+}
+
+function monthTransactions(month) {
+  return loadTransactions().filter((item) =>
+    item.date.startsWith(month)
+  );
+}
+
+/* ---------- CALCULATE TOTALS ---------- */
+
+function totals(transactions) {
+  const income = transactions
+    .filter((item) => item.type === "income")
+    .reduce((sum, item) => sum + Number(item.amount), 0);
+
+  const expenses = transactions
+    .filter((item) => item.type === "expense")
+    .reduce((sum, item) => sum + Number(item.amount), 0);
+
+  return {
+    income,
+    expenses,
+    balance: income - expenses
+  };
+}
+
+/* ---------- TRANSACTION DISPLAY ---------- */
+
+function transactionMarkup(item, showDelete = false) {
+  const isIncome = item.type === "income";
+  const sign = isIncome ? "+" : "−";
+  const amountClass = isIncome ? "income-text" : "expense-text";
+  const symbol = isIncome ? "↗" : "↙";
+
+  const description =
+    item.description || (isIncome ? "Income" : "Expense");
+
+  const category = isIncome
+    ? "Income"
+    : (item.category || "Other");
+
+  return `
+    <div class="transaction-row">
+
+      <div class="transaction-icon">
+        ${symbol}
+      </div>
+
+      <div class="transaction-info">
+        <p class="transaction-title">
+          ${escapeHTML(description)}
+        </p>
+
+        <p class="transaction-meta">
+          ${escapeHTML(category)}
+          · ${escapeHTML(formatDate(item.date))}
+        </p>
+      </div>
+
+      <div class="transaction-actions">
+
+        <span class="transaction-amount ${amountClass}">
+          ${sign}${money(Number(item.amount))}
+        </span>
+
+        ${showDelete ? `
+          <button
+            class="delete-button"
+            type="button"
+            data-delete="${escapeHTML(item.id)}"
+            aria-label="Delete transaction">
+            Delete
+          </button>
+        ` : ""}
+
+      </div>
+    </div>
+  `;
+}
+
+function renderTransactionList(element, transactions, showDelete = false) {
+  if (!element) return;
+
+  if (transactions.length === 0) {
+    element.innerHTML = `
+      <div class="empty-state">
+        No entries found. Add your first income or expense!
+      </div>
+    `;
+
+    return;
+  }
+
+  element.innerHTML = transactions
+    .map((item) => transactionMarkup(item, showDelete))
+    .join("");
+}
+
+/* =========================================
+   DASHBOARD
+========================================= */
+
+function renderDashboard() {
+  const monthInput = $("dashboardMonth");
+
+  if (!monthInput) return;
+
+  const month = monthInput.value || currentMonth();
+  const transactions = monthTransactions(month);
+  const summary = totals(transactions);
+
+  setText("totalIncome", money(summary.income));
+  setText("totalExpenses", money(summary.expenses));
+  setText("totalBalance", money(summary.balance));
+
+  // Show zero instead of a negative amount for Money Left.
+  setText("moneyLeft", money(Math.max(0, summary.balance)));
+
+  const moneyLeftNote = $("moneyLeftNote");
+
+  if (moneyLeftNote) {
+    moneyLeftNote.textContent =
+      summary.balance < 0
+        ? "You spent more than your income"
+        : "Your remaining money";
+  }
+
+  const recent = [...transactions]
+    .sort((a, b) =>
+      b.date.localeCompare(a.date) ||
+      Number(b.createdAt || 0) - Number(a.createdAt || 0)
+    )
+    .slice(0, 6);
+
+  renderTransactionList($("recentTransactions"), recent);
+  renderCategoryBreakdown(transactions);
+  renderMonthlyChart();
+}
+
+function initializeDashboard() {
+  const monthInput = $("dashboardMonth");
+
+  if (!monthInput) return;
+
+  monthInput.value = currentMonth();
+
+  monthInput.addEventListener("change", renderDashboard);
+
+  renderDashboard();
+}
+
+/* ---------- EXPENSE CATEGORY BREAKDOWN ---------- */
+
+function renderCategoryBreakdown(transactions) {
+  const element = $("categoryBreakdown");
+
+  if (!element) return;
+
+  const expenses = transactions.filter(
+    (item) => item.type === "expense"
+  );
+
+  const categoryTotals = {};
+
+  expenses.forEach((item) => {
+    const category = item.category || "Other";
+
+    categoryTotals[category] =
+      (categoryTotals[category] || 0) + Number(item.amount);
+  });
+
+  const entries = Object.entries(categoryTotals)
+    .sort((a, b) => b[1] - a[1]);
+
+  const totalExpense = expenses.reduce(
+    (sum, item) => sum + Number(item.amount),
+    0
+  );
+
+  if (entries.length === 0) {
+    element.innerHTML = `
+      <div class="empty-state">
+        No expenses recorded this month.
+      </div>
+    `;
+
+    return;
+  }
+
+  element.innerHTML = entries.map(([category, amount]) => {
+    const percentage = totalExpense > 0
+      ? (amount / totalExpense) * 100
+      : 0;
+
+    return `
+      <div>
+        <div class="category-heading">
+          <span>${escapeHTML(category)}</span>
+          <span>${money(amount)}</span>
+        </div>
+
+        <div class="progress-track">
+          <div
+            class="progress-fill"
+            style="width:${percentage.toFixed(1)}%">
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+/* ---------- LAST SIX MONTHS CHART ---------- */
+
+function renderMonthlyChart() {
+  const element = $("monthlyChart");
+
+  if (!element) return;
+
+  const now = new Date();
+  const months = [];
+
+  for (let offset = 5; offset >= 0; offset--) {
+    const date = new Date(
+      now.getFullYear(),
+      now.getMonth() - offset,
+      1
+    );
+
+    const key =
+      `${date.getFullYear()}-${String(
+        date.getMonth() + 1
+      ).padStart(2, "0")}`;
+
+    const summary = totals(monthTransactions(key));
+
+    months.push({
+      key,
+      label: date.toLocaleDateString("en-IN", {
+        month: "short"
+      }),
+      income: summary.income,
+      expenses: summary.expenses
+    });
+  }
+
+  const maxValue = Math.max(
+    1,
+    ...months.flatMap((month) => [
+      month.income,
+      month.expenses
+    ])
+  );
+
+  element.innerHTML = months.map((month) => {
+    const incomeHeight = (month.income / maxValue) * 100;
+    const expenseHeight = (month.expenses / maxValue) * 100;
+
+    return `
+      <div class="month-column" title="${escapeHTML(month.key)}">
+
+        <div class="bar-pair">
+          <div
+            class="chart-bar income-bar"
+            style="height:${incomeHeight}%"
+            title="Income: ${money(month.income)}">
+          </div>
+
+          <div
+            class="chart-bar expense-bar"
+            style="height:${expenseHeight}%"
+            title="Expenses: ${money(month.expenses)}">
+          </div>
+        </div>
+
+        <span class="month-label">
+          ${escapeHTML(month.label)}
+        </span>
+
+      </div>
+    `;
+  }).join("");
+}
+
+/* =========================================
+   ADD INCOME OR EXPENSE
+========================================= */
+
+function initializeAddForm() {
+  const form = $("transactionForm");
+
+  if (!form) return;
+
+  const typeInput = $("transactionType");
+  const categoryDetails = $("expenseDetails");
+  const categoryInput = $("category");
+  const dateInput = $("date");
+  const descriptionInput = $("description");
+  const message = $("formMessage");
+
+  const typeButtons = document.querySelectorAll(".type-choice");
+
+  if (
+    !typeInput ||
+    !categoryDetails ||
+    !categoryInput ||
+    !dateInput ||
+    !descriptionInput
+  ) {
+    console.error("A required form element is missing from add-expense.html.");
+    return;
+  }
+
+  dateInput.value = localDateString();
+
+  /*
+    IMPORTANT FIX:
+    This function changes the selected button,
+    hides the expense category for Income,
+    and shows it again for Expense.
+  */
+
+  function selectType(type) {
+    typeInput.value = type;
+
+    typeButtons.forEach((button) => {
+      const isActive = button.dataset.type === type;
+
+      button.classList.toggle("active", isActive);
+
+      button.setAttribute(
+        "aria-pressed",
+        String(isActive)
+      );
+    });
+
+    categoryDetails.hidden = type === "income";
+    categoryInput.required = type === "expense";
+
+    descriptionInput.placeholder =
+      type === "income"
+        ? "e.g. Salary, gift, other income"
+        : "e.g. Lunch, groceries, bus ticket";
+
+    if (message) {
+      message.textContent = "";
+    }
+  }
+
+  // Connect Income and Expense buttons.
+  typeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const type = button.dataset.type;
+
+      if (type === "income" || type === "expense") {
+        selectType(type);
+      }
+    });
+  });
+
+  // Start with Expense selected.
+  selectType("expense");
+
+  // Save a new entry.
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+
+    const amount = Number($("amount").value);
+    const type = typeInput.value;
+    const description = descriptionInput.value.trim();
+    const date = dateInput.value;
+
+    if (!["income", "expense"].includes(type)) {
+      message.textContent = "Please choose Income or Expense.";
+      return;
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      message.textContent = "Enter an amount greater than zero.";
+      $("amount").focus();
+      return;
+    }
+
+    if (!description || !date) {
+      message.textContent = "Please complete all required fields.";
+      return;
+    }
+
+    const transaction = {
+      id: (
+        typeof crypto !== "undefined" &&
+        typeof crypto.randomUUID === "function"
+      )
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+
+      type,
+      amount,
+      description,
+
+      category: type === "expense"
+        ? categoryInput.value
+        : "",
+
+      date,
+      createdAt: Date.now()
+    };
+
+    try {
+      const transactions = loadTransactions();
+
+      transactions.push(transaction);
+      saveTransactions(transactions);
+
+      if (message) {
+        message.textContent =
+          `${type === "income" ? "Income" : "Expense"} saved successfully!`;
+      }
+
+      form.reset();
+
+      dateInput.value = localDateString();
+
+      // Return to Expense after saving.
+      selectType("expense");
+
+      $("amount").focus();
+
+    } catch (error) {
+      console.error("Unable to save entry:", error);
+
+      if (message) {
+        message.textContent =
+          "Could not save your entry. Check browser storage settings.";
+      }
+    }
+  });
+}
+
+/* =========================================
+   ALL TRANSACTIONS PAGE
+========================================= */
+
+function getFilteredTransactions() {
+  const monthInput = $("historyMonth");
+  const typeInput = $("typeFilter");
+  const searchInput = $("searchInput");
+
+  const month = monthInput ? monthInput.value : "";
+  const type = typeInput ? typeInput.value : "all";
+
+  const query = searchInput
+    ? searchInput.value.trim().toLowerCase()
+    : "";
+
+  return loadTransactions()
+    .filter((item) =>
+      !month || item.date.startsWith(month)
+    )
+    .filter((item) =>
+      type === "all" || item.type === type
+    )
+    .filter((item) =>
+      `${item.description || ""} ${item.category || ""}`
+        .toLowerCase()
+        .includes(query)
+    )
+    .sort((a, b) =>
+      b.date.localeCompare(a.date) ||
+      Number(b.createdAt || 0) - Number(a.createdAt || 0)
+    );
+}
+
+function renderHistory() {
+  const list = $("allTransactions");
+
+  if (!list) return;
+
+  const monthInput = $("historyMonth");
+  const month = monthInput ? monthInput.value : currentMonth();
+
+  // Totals are for the selected month, regardless of search/type filters.
+  const summary = totals(monthTransactions(month));
+  const filtered = getFilteredTransactions();
+
+  setText("historyIncome", money(summary.income));
+  setText("historyExpenses", money(summary.expenses));
+  setText("historyBalance", money(summary.balance));
+
+  setText(
+    "transactionCount",
+    `${filtered.length} ${filtered.length === 1 ? "entry" : "entries"} shown`
+  );
+
+  renderTransactionList(list, filtered, true);
+}
+
+function initializeHistory() {
+  const monthInput = $("historyMonth");
+
+  if (!monthInput) return;
+
+  monthInput.value = currentMonth();
+
+  $("historyMonth").addEventListener("change", renderHistory);
+  $("typeFilter").addEventListener("change", renderHistory);
+  $("searchInput").addEventListener("input", renderHistory);
+
+  $("clearFilters").addEventListener("click", () => {
+    monthInput.value = currentMonth();
+    $("typeFilter").value = "all";
+    $("searchInput").value = "";
+
+    renderHistory();
+  });
+
+  // Delete one transaction.
+  $("allTransactions").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-delete]");
+
+    if (!button) return;
+
+    const id = button.dataset.delete;
+
+    const transaction = loadTransactions().find(
+      (item) => item.id === id
+    );
+
+    if (!transaction) return;
+
+    const description = transaction.description || "this entry";
+
+    if (!confirm(`Delete "${description}"? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const remaining = loadTransactions().filter(
+        (item) => item.id !== id
+      );
+
+      saveTransactions(remaining);
+      renderHistory();
+
+    } catch (error) {
+      console.error("Unable to delete entry:", error);
+      alert("Could not delete this entry.");
+    }
+  });
+
+  // Delete all transactions for the selected month.
+  $("clearMonth").addEventListener("click", () => {
+    const month = monthInput.value;
+    const items = monthTransactions(month);
+
+    if (items.length === 0) {
+      alert("There are no entries in this month.");
+      return;
+    }
+
+    if (!confirm(
+      `Delete all ${items.length} entries from ${month}? This cannot be undone.`
+    )) {
+      return;
+    }
+
+    try {
+      const remaining = loadTransactions().filter(
+        (item) => !item.date.startsWith(month)
+      );
+
+      saveTransactions(remaining);
+      renderHistory();
+
+    } catch (error) {
+      console.error("Unable to clear month:", error);
+      alert("Could not clear this month's entries.");
+    }
+  });
+
+  $("exportCsv").addEventListener("click", exportCsv);
+
+  renderHistory();
+}
+
+/* ---------- EXPORT CSV ---------- */
+
+function exportCsv() {
+  const transactions = getFilteredTransactions();
+
+  if (transactions.length === 0) {
+    alert("There are no entries to export.");
+    return;
+  }
+
+  function quoteCsv(value) {
+    return `"${String(value ?? "").replace(/"/g, '""')}"`;
+  }
+
+  const rows = [
+    ["Date", "Type", "Description", "Category", "Amount"],
+
+    ...transactions.map((item) => [
+      item.date,
+      item.type === "income" ? "Income" : "Expense",
+      item.description || "",
+      item.category || "",
+      Number(item.amount).toFixed(2)
+    ])
+  ];
+
+  const csv = "\uFEFF" + rows
+    .map((row) => row.map(quoteCsv).join(","))
+    .join("\r\n");
+
+  const blob = new Blob([csv], {
+    type: "text/csv;charset=utf-8;"
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = `my-money-${currentMonth()}.csv`;
+
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  URL.revokeObjectURL(url);
+}
+
+/* =========================================
+   START THE APP
+========================================= */
+
+document.addEventListener("DOMContentLoaded", () => {
+  initializeDashboard();
+  initializeAddForm();
+  initializeHistory();
+});

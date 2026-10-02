@@ -1,0 +1,96 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>All Transactions | My Money</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="index.html">
+      <span class="brand-icon">₹</span>
+      <span>My Money</span>
+    </a>
+    <nav class="nav">
+      <a class="nav-link" href="index.html">Dashboard</a>
+      <a class="nav-link" href="add-expense.html">Add Entry</a>
+      <a class="nav-link active" href="expenses.html">All Transactions</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="page-heading">
+      <div>
+        <p class="eyebrow">YOUR RECORDS</p>
+        <h1>All Transactions</h1>
+        <p class="subtitle">Find and manage your income and expenses.</p>
+      </div>
+      <a class="button" href="add-expense.html">+ Add Entry</a>
+    </section>
+
+    <section class="panel filters-panel">
+      <div class="filters-grid">
+        <div class="form-group">
+          <label for="historyMonth">Choose month</label>
+          <input type="month" id="historyMonth">
+        </div>
+        <div class="form-group">
+          <label for="typeFilter">Entry type</label>
+          <select id="typeFilter">
+            <option value="all">All entries</option>
+            <option value="income">Income only</option>
+            <option value="expense">Expenses only</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="searchInput">Search</label>
+          <input type="search" id="searchInput"
+                 placeholder="Search description or category">
+        </div>
+      </div>
+
+      <div class="filter-actions">
+        <button id="clearFilters" class="button button-secondary" type="button">
+          Reset Filters
+        </button>
+        <button id="exportCsv" class="button button-secondary" type="button">
+          Export CSV
+        </button>
+        <button id="clearMonth" class="button button-danger" type="button">
+          Clear This Month
+        </button>
+      </div>
+    </section>
+
+    <section class="summary-grid history-summary">
+      <article class="summary-card">
+        <span class="summary-label">Total Income</span>
+        <p class="summary-value income-text" id="historyIncome">₹0.00</p>
+      </article>
+      <article class="summary-card">
+        <span class="summary-label">Total Expenses</span>
+        <p class="summary-value expense-text" id="historyExpenses">₹0.00</p>
+      </article>
+      <article class="summary-card">
+        <span class="summary-label">Balance</span>
+        <p class="summary-value" id="historyBalance">₹0.00</p>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2>Transaction List</h2>
+          <p class="subtitle" id="transactionCount">0 entries</p>
+        </div>
+      </div>
+      <div id="allTransactions" class="transaction-list"></div>
+    </section>
+  </main>
+
+  <footer class="footer">My Money · Manage your money simply</footer>
+</body>
+</html>
